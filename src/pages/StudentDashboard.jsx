@@ -5,10 +5,15 @@ import { useData } from "../context/DataContext";
 import { calculateMatch } from "../utils/matchScore";
 import MatchBar from "../components/MatchBar";
 import StatusBadge from "../components/StatusBadge";
+import { useEffect } from "react";
 
 function StudentDashboard() {
   const { currentUser } = useAuth();
-  const { internships, getMyApplications } = useData();
+  const { internships, getMyApplications, loadApplications } = useData();
+  // Load fresh applications from API every time dashboard mounts
+  useEffect(() => {
+    loadApplications();
+  }, []);
 
   const myApps = getMyApplications(currentUser.id);
 

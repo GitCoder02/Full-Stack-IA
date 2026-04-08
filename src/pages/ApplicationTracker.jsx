@@ -4,10 +4,15 @@ import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
 import StatusBadge from "../components/StatusBadge";
 import MatchBar from "../components/MatchBar";
+import { useEffect } from "react";
 
 function ApplicationTracker() {
   const { currentUser } = useAuth();
-  const { getMyApplications, internships } = useData();
+  const { getMyApplications, internships, loadApplications } = useData();
+
+  useEffect(() => {
+    loadApplications();
+  }, []);
 
   const [filter, setFilter] = useState("All");
 

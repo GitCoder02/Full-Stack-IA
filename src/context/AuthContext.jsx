@@ -2,113 +2,124 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
-// Seed one admin + one student account on first load
-const SEED_USERS = [
-  {
-    id: "u0",
-    name: "Admin",
-    email: "admin@mit.edu",
-    password: "admin123",
-    role: "admin",
-    skills: [],
-  },
-  {
-    id: "u1",
-    name: "Arjun Sharma",
-    email: "student@mit.edu",
-    password: "student123",
-    role: "student",
-    skills: ["React", "JavaScript", "Node.js", "Git", "HTML", "CSS"],
-  },
-];
-
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // On app load — restore logged in user from localStorage
+  // On app load — if token exists, restore session by calling the API
   useEffect(() => {
-    // Seed users if first time
-    const existing = localStorage.getItem("users");
-    if (!existing) {
-      localStorage.setItem("users", JSON.stringify(SEED_USERS));
-    }
-
-    // Restore session
-    const savedUser = localStorage.getItem("currentUser");
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+    const token = localStorage.getItem("token");
+    if (token) {
+      restoreSession(token);
+    } else {
+      setAuthLoading(false);
     }
   }, []);
 
-  function getUsers() {
-    return JSON.parse(localStorage.getItem("users")) || [];
+  async function restoreSession(token) {
+    try {
+      const res = await fetch("/api/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const user = await res.json();
+        setCurrentUser(user);
+      } else {
+        // Token expired or invalid — clear it
+        localStorage.removeItem("token");
+      }
+    } catch (error) {
+      localStorage.removeItem("token");
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
-  function saveUsers(users) {
-    localStorage.setItem("users", JSON.stringify(users));
+  async function login(email, password) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, message: data.message };
+
+      localStorage.setItem("token", data.token);
+      setCurrentUser(data.user);
+      return { success: true, role: data.user.role };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Cannot connect to server. Please try again.",
+      };
+    }
   }
 
-  function login(email, password) {
-    const users = getUsers();
-    const user = users.find(
-      (u) => u.email === email && u.password === password,
-    );
-    if (!user) return { success: false, message: "Invalid email or password" };
+  async function signup(name, email, password) {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, message: data.message };
 
-    setCurrentUser(user);
-    localStorage.setItem("currentUser", JSON.stringify(user));
-    return { success: true, role: user.role };
-  }
-
-  function signup(name, email, password) {
-    const users = getUsers();
-
-    // Check if email already exists
-    const exists = users.find((u) => u.email === email);
-    if (exists) return { success: false, message: "Email already registered" };
-
-    const newUser = {
-      id: "u" + Date.now(),
-      name,
-      email,
-      password,
-      role: "student",
-      skills: [],
-    };
-
-    saveUsers([...users, newUser]);
-    setCurrentUser(newUser);
-    localStorage.setItem("currentUser", JSON.stringify(newUser));
-    return { success: true };
+      localStorage.setItem("token", data.token);
+      setCurrentUser(data.user);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Cannot connect to server. Please try again.",
+      };
+    }
   }
 
   function logout() {
+    localStorage.removeItem("token");
     setCurrentUser(null);
-    localStorage.removeItem("currentUser");
+    // Tell DataContext to clear applications
+    window.dispatchEvent(new CustomEvent("user-logout"));
   }
 
-  function updateSkills(newSkills) {
-    const users = getUsers();
-    const updated = users.map((u) =>
-      u.id === currentUser.id ? { ...u, skills: newSkills } : u,
-    );
-    saveUsers(updated);
-
-    const updatedUser = { ...currentUser, skills: newSkills };
-    setCurrentUser(updatedUser);
-    localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+  async function updateSkills(newSkills) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("/api/users/me/skills", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ skills: newSkills }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentUser((prev) => ({ ...prev, skills: data.skills }));
+      }
+    } catch (error) {
+      console.error("Update skills error:", error);
+    }
   }
 
   return (
     <AuthContext.Provider
-      value={{ currentUser, login, signup, logout, updateSkills }}
+      value={{
+        currentUser,
+        authLoading,
+        login,
+        signup,
+        logout,
+        updateSkills,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Custom hook — use this in any component
 export function useAuth() {
   return useContext(AuthContext);
 }

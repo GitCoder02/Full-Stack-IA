@@ -1,9 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "../context/DataContext";
+import { useEffect } from "react";
 
 function AdminDashboard() {
-  const { internships, applications, deleteInternship } = useData();
+  const { internships, applications, deleteInternship, loadAllApplications } =
+    useData();
+  useEffect(() => {
+    loadAllApplications();
+  }, []);
+
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [search, setSearch] = useState("");
 
