@@ -1,57 +1,46 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
 import StatusBadge from "../components/StatusBadge";
 import MatchBar from "../components/MatchBar";
-import { useEffect } from "react";
 
 function ApplicationTracker() {
   const { currentUser } = useAuth();
-  const { getMyApplications, internships, loadApplications } = useData();
+  const { getMyApplications, loadApplications } = useData();
+  const [filter, setFilter] = useState("All");
+  const [appsLoading, setAppsLoading] = useState(true);
 
   useEffect(() => {
-    loadApplications();
-  }, []);
-
-  const [filter, setFilter] = useState("All");
+    loadApplications().finally(() => setAppsLoading(false));
+  }, [loadApplications]);
 
   const statuses = ["All", "Applied", "Under Review", "Selected", "Rejected"];
-
   const myApps = getMyApplications(currentUser.id);
 
-  const enriched = useMemo(() => {
-    return myApps.map((app) => ({
-      ...app,
-      internship: internships.find((i) => i.id === app.internshipId),
-    }));
-  }, [myApps, internships]);
-
   const filtered =
-    filter === "All" ? enriched : enriched.filter((a) => a.status === filter);
+    filter === "All" ? myApps : myApps.filter((a) => a.status === filter);
 
-  // Summary counts
   const counts = useMemo(
     () => ({
-      All: enriched.length,
-      Applied: enriched.filter((a) => a.status === "Applied").length,
-      "Under Review": enriched.filter((a) => a.status === "Under Review")
-        .length,
-      Selected: enriched.filter((a) => a.status === "Selected").length,
-      Rejected: enriched.filter((a) => a.status === "Rejected").length,
+      All: myApps.length,
+      Applied: myApps.filter((a) => a.status === "Applied").length,
+      "Under Review": myApps.filter((a) => a.status === "Under Review").length,
+      Selected: myApps.filter((a) => a.status === "Selected").length,
+      Rejected: myApps.filter((a) => a.status === "Rejected").length,
     }),
-    [enriched],
+    [myApps],
   );
 
   return (
     <div className="container py-5" style={{ maxWidth: 900 }}>
-      {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
           <h2 className="fw-bold mb-1">My Applications 📂</h2>
           <p className="text-muted mb-0">
-            {enriched.length} total application
-            {enriched.length !== 1 ? "s" : ""}
+            {appsLoading
+              ? "Loading your applications..."
+              : `${myApps.length} total application${myApps.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <Link to="/internships" className="btn btn-primary rounded-3">
@@ -59,7 +48,7 @@ function ApplicationTracker() {
         </Link>
       </div>
 
-      {/* Summary stat row */}
+      {/* Stat cards */}
       <div className="row g-3 mb-4">
         {[
           { label: "Applied", color: "secondary", icon: "📋" },
@@ -72,9 +61,18 @@ function ApplicationTracker() {
               className={`card border-0 shadow-sm rounded-4 p-3 text-center border-top border-3 border-${s.color}`}
             >
               <div className="fs-4">{s.icon}</div>
-              <div className={`fs-4 fw-bold text-${s.color}`}>
-                {counts[s.label]}
-              </div>
+              {appsLoading ? (
+                <div className="placeholder-glow mt-1">
+                  <span
+                    className="placeholder col-4 rounded mx-auto d-block"
+                    style={{ height: 28 }}
+                  />
+                </div>
+              ) : (
+                <div className={`fs-4 fw-bold text-${s.color}`}>
+                  {counts[s.label]}
+                </div>
+              )}
               <div className="text-muted" style={{ fontSize: "0.78rem" }}>
                 {s.label}
               </div>
@@ -91,16 +89,34 @@ function ApplicationTracker() {
             onClick={() => setFilter(s)}
             className={`btn btn-sm rounded-pill px-3 ${filter === s ? "btn-primary" : "btn-outline-secondary"}`}
           >
-            {s}{" "}
-            {counts[s] !== undefined && (
-              <span className="ms-1 opacity-75">({counts[s]})</span>
-            )}
+            {s} <span className="ms-1 opacity-75">({counts[s] ?? 0})</span>
           </button>
         ))}
       </div>
 
       {/* Applications list */}
-      {filtered.length === 0 ? (
+      {appsLoading ? (
+        <div className="d-flex flex-column gap-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="card border-0 shadow-sm rounded-4 p-4">
+              <div className="placeholder-glow">
+                <span
+                  className="placeholder col-5 rounded d-block mb-2"
+                  style={{ height: 18 }}
+                />
+                <span
+                  className="placeholder col-3 rounded d-block mb-3"
+                  style={{ height: 14 }}
+                />
+                <span
+                  className="placeholder col-full rounded d-block"
+                  style={{ height: 8 }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-5">
           <div className="fs-1 mb-3">{filter === "All" ? "📭" : "🔍"}</div>
           <h5 className="fw-bold">
@@ -126,7 +142,6 @@ function ApplicationTracker() {
               key={app.id}
               className="card border-0 shadow-sm rounded-4 overflow-hidden"
             >
-              {/* Left accent bar by status */}
               <div className="d-flex">
                 <div
                   style={{
@@ -136,7 +151,7 @@ function ApplicationTracker() {
                       app.status === "Selected"
                         ? "#198754"
                         : app.status === "Under Review"
-                          ? "#ffc107"
+                          ? "#e6a817"
                           : app.status === "Rejected"
                             ? "#dc3545"
                             : "#6c757d",
@@ -144,7 +159,6 @@ function ApplicationTracker() {
                 />
                 <div className="p-4 w-100">
                   <div className="row align-items-center g-3">
-                    {/* Info */}
                     <div className="col-md-5">
                       <h5 className="fw-bold mb-1">
                         {app.internship?.role || "Unknown Role"}
@@ -156,13 +170,9 @@ function ApplicationTracker() {
                         Applied on {app.appliedDate}
                       </p>
                     </div>
-
-                    {/* Match score */}
                     <div className="col-md-4">
                       <MatchBar score={app.matchScore} />
                     </div>
-
-                    {/* Status + View */}
                     <div className="col-md-3 d-flex flex-column align-items-md-end gap-2">
                       <StatusBadge status={app.status} />
                       <Link

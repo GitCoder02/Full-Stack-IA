@@ -1,19 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "../context/DataContext";
-import { useEffect } from "react";
 
 function AdminDashboard() {
   const { internships, applications, deleteInternship, loadAllApplications } =
     useData();
-  useEffect(() => {
-    loadAllApplications();
-  }, []);
-
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Stats
+  // Load all applications on mount
+  useEffect(() => {
+    loadAllApplications();
+  }, [loadAllApplications]);
+
   const stats = useMemo(() => {
     const totalApplicants = applications.length;
     const avgMatch = applications.length
@@ -25,7 +24,6 @@ function AdminDashboard() {
     return { totalApplicants, avgMatch };
   }, [applications]);
 
-  // Enriched internships with applicant count
   const enriched = useMemo(() => {
     return internships
       .filter(
@@ -55,7 +53,7 @@ function AdminDashboard() {
         <div>
           <h2 className="fw-bold mb-1">Admin Dashboard ⚙️</h2>
           <p className="text-muted mb-0">
-            Manage internship listings and view applicants
+            Manage internship listings and applicants
           </p>
         </div>
         <Link to="/admin/post" className="btn btn-primary rounded-3 px-4">
@@ -117,7 +115,7 @@ function AdminDashboard() {
       </div>
 
       {/* Listings table */}
-      <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
+      <div className="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
         <div className="table-responsive">
           <table className="table table-hover mb-0 align-middle">
             <thead style={{ background: "#f8f9fa" }}>
@@ -217,7 +215,7 @@ function AdminDashboard() {
 
       {/* Applicants section */}
       {applications.length > 0 && (
-        <div className="mt-5">
+        <div>
           <h5 className="fw-bold mb-4">👥 All Applicants</h5>
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
             <div className="table-responsive">
@@ -225,35 +223,27 @@ function AdminDashboard() {
                 <thead style={{ background: "#f8f9fa" }}>
                   <tr>
                     <th className="px-4 py-3 fw-semibold text-muted small">
+                      STUDENT
+                    </th>
+                    <th className="py-3 fw-semibold text-muted small">
                       INTERNSHIP
                     </th>
                     <th className="py-3 fw-semibold text-muted small">
                       APPLIED ON
                     </th>
-                    <th className="py-3 fw-semibold text-muted small">
-                      MATCH SCORE
-                    </th>
+                    <th className="py-3 fw-semibold text-muted small">MATCH</th>
                     <th className="py-3 fw-semibold text-muted small">
                       STATUS
                     </th>
                     <th className="py-3 fw-semibold text-muted small">
-                      UPDATE STATUS
+                      UPDATE
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map((app) => {
-                    const internship = internships.find(
-                      (i) => i.id === app.internshipId,
-                    );
-                    return (
-                      <ApplicantRow
-                        key={app.id}
-                        app={app}
-                        internship={internship}
-                      />
-                    );
-                  })}
+                  {applications.map((app) => (
+                    <ApplicantRow key={app.id} app={app} />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -296,8 +286,8 @@ function AdminDashboard() {
   );
 }
 
-// Separate component so each row manages its own status dropdown
-function ApplicantRow({ app, internship }) {
+// Separate component so each row manages its own status dropdown state
+function ApplicantRow({ app }) {
   const { updateApplicationStatus } = useData();
   const [status, setStatus] = useState(app.status);
 
@@ -315,9 +305,17 @@ function ApplicantRow({ app, internship }) {
 
   return (
     <tr>
+      {/* Student info — available from loadAllApplications */}
       <td className="px-4 py-3">
-        <p className="fw-bold mb-0">{internship?.role || "Unknown"}</p>
-        <p className="text-muted small mb-0">{internship?.company}</p>
+        <p className="fw-bold mb-0">{app.studentName || "Unknown"}</p>
+        <p className="text-muted small mb-0">{app.studentEmail || ""}</p>
+      </td>
+      {/* Internship — already populated from API */}
+      <td className="py-3">
+        <p className="fw-bold mb-0 small">
+          {app.internship?.role || "Unknown"}
+        </p>
+        <p className="text-muted mb-0 small">{app.internship?.company}</p>
       </td>
       <td className="text-muted small">{app.appliedDate}</td>
       <td>

@@ -13,12 +13,13 @@ function InternshipListing() {
   const [selectedDomain, setSelectedDomain] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
   const [minStipend, setMinStipend] = useState("");
-  const [sortBy, setSortBy] = useState("match"); // 'match' | 'stipend' | 'deadline'
+  const [sortBy, setSortBy] = useState("match");
+
+  const isLoading = internships.length === 0;
 
   const filtered = useMemo(() => {
     let result = [...internships];
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -28,23 +29,13 @@ function InternshipListing() {
           i.requiredSkills.some((s) => s.toLowerCase().includes(q)),
       );
     }
-
-    // Domain filter
-    if (selectedDomain) {
+    if (selectedDomain)
       result = result.filter((i) => i.domain === selectedDomain);
-    }
-
-    // Location filter
-    if (selectedLocation) {
+    if (selectedLocation)
       result = result.filter((i) => i.location === selectedLocation);
-    }
-
-    // Stipend filter
-    if (minStipend) {
+    if (minStipend)
       result = result.filter((i) => i.stipend >= Number(minStipend));
-    }
 
-    // Sort
     if (sortBy === "match" && currentUser?.role === "student") {
       result.sort((a, b) => {
         const scoreA = calculateMatch(
@@ -86,17 +77,17 @@ function InternshipListing() {
 
   return (
     <div className="container-fluid py-4" style={{ maxWidth: 1200 }}>
-      {/* Page header */}
       <div className="mb-4">
         <h2 className="fw-bold mb-1">Browse Internships</h2>
         <p className="text-muted mb-0">
-          {filtered.length} internship{filtered.length !== 1 ? "s" : ""} found
-          {currentUser?.role === "student" && " · sorted by your match score"}
+          {isLoading
+            ? "Loading internships..."
+            : `${filtered.length} internship${filtered.length !== 1 ? "s" : ""} found${currentUser?.role === "student" ? " · sorted by your match score" : ""}`}
         </p>
       </div>
 
       <div className="row g-4">
-        {/* ── LEFT: Filters ── */}
+        {/* Filters */}
         <div className="col-lg-3">
           <div
             className="card border-0 shadow-sm rounded-4 p-4 sticky-top"
@@ -114,7 +105,6 @@ function InternshipListing() {
               )}
             </div>
 
-            {/* Search */}
             <div className="mb-3">
               <label className="form-label small fw-semibold text-muted">
                 Search
@@ -128,7 +118,6 @@ function InternshipListing() {
               />
             </div>
 
-            {/* Domain */}
             <div className="mb-3">
               <label className="form-label small fw-semibold text-muted">
                 Domain
@@ -147,7 +136,6 @@ function InternshipListing() {
               </select>
             </div>
 
-            {/* Location */}
             <div className="mb-3">
               <label className="form-label small fw-semibold text-muted">
                 Location
@@ -166,7 +154,6 @@ function InternshipListing() {
               </select>
             </div>
 
-            {/* Min stipend */}
             <div className="mb-3">
               <label className="form-label small fw-semibold text-muted">
                 Min Stipend (₹)
@@ -180,7 +167,6 @@ function InternshipListing() {
               />
             </div>
 
-            {/* Sort */}
             <div>
               <label className="form-label small fw-semibold text-muted">
                 Sort By
@@ -200,9 +186,45 @@ function InternshipListing() {
           </div>
         </div>
 
-        {/* ── RIGHT: Cards ── */}
+        {/* Cards */}
         <div className="col-lg-9">
-          {filtered.length === 0 ? (
+          {/* Loading skeleton */}
+          {isLoading ? (
+            <div className="row g-4">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <div key={n} className="col-md-6 col-xl-4">
+                  <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
+                    <div className="placeholder-glow">
+                      <span
+                        className="placeholder col-4 rounded mb-3 d-block"
+                        style={{ height: 24 }}
+                      />
+                      <span
+                        className="placeholder col-8 rounded mb-2 d-block"
+                        style={{ height: 20 }}
+                      />
+                      <span
+                        className="placeholder col-5 rounded mb-4 d-block"
+                        style={{ height: 16 }}
+                      />
+                      <span
+                        className="placeholder col-12 rounded mb-2 d-block"
+                        style={{ height: 12 }}
+                      />
+                      <span
+                        className="placeholder col-10 rounded mb-4 d-block"
+                        style={{ height: 12 }}
+                      />
+                      <span
+                        className="placeholder col-12 rounded d-block"
+                        style={{ height: 36 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="text-center py-5">
               <div className="fs-1 mb-3">🔍</div>
               <h5 className="fw-bold">No internships found</h5>

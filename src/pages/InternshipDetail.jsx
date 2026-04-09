@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "../context/DataContext";
 import { useAuth } from "../context/AuthContext";
@@ -11,14 +12,19 @@ function InternshipDetail() {
   const { internships, applyToInternship, hasApplied } = useData();
   const { currentUser } = useAuth();
 
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState("");
+
   const internship = internships.find((i) => i.id === id);
 
   if (!internship) {
     return (
       <div className="container py-5 text-center">
-        <h3>Internship not found</h3>
+        <div className="fs-1 mb-3">🔍</div>
+        <h3 className="fw-bold mb-2">Internship not found</h3>
+        <p className="text-muted mb-4">This listing may have been removed.</p>
         <button
-          className="btn btn-primary mt-3"
+          className="btn btn-primary rounded-3"
           onClick={() => navigate("/internships")}
         >
           Back to Listings
@@ -38,13 +44,28 @@ function InternshipDetail() {
     (new Date(internship.deadline) - new Date()) / (1000 * 60 * 60 * 24),
   );
 
-  function handleApply() {
+  async function handleApply() {
     if (!currentUser) {
       navigate("/login");
       return;
     }
-    applyToInternship(currentUser.id, internship.id, score);
-    navigate("/applications");
+    setApplyError("");
+    setApplying(true);
+
+    // CRITICAL: await the async apply function
+    const result = await applyToInternship(
+      currentUser.id,
+      internship.id,
+      score,
+    );
+
+    setApplying(false);
+
+    if (result.success) {
+      navigate("/applications");
+    } else {
+      setApplyError(result.message || "Could not apply. Please try again.");
+    }
   }
 
   return (
@@ -78,12 +99,18 @@ function InternshipDetail() {
             </div>
 
             {/* Meta */}
-            <div className="d-flex flex-wrap gap-4 text-muted small mb-3">
+            <div className="d-flex flex-wrap gap-4 text-muted small mb-0">
               <span>📍 {internship.location}</span>
               <span>💰 ₹{internship.stipend.toLocaleString()}/month</span>
-              <span className={daysLeft <= 7 ? "text-danger fw-bold" : ""}>
+              <span
+                className={
+                  daysLeft <= 7 && daysLeft > 0 ? "text-danger fw-bold" : ""
+                }
+              >
                 📅 Deadline: {internship.deadline}
-                {daysLeft > 0 ? ` (${daysLeft} days left)` : " (Passed)"}
+                {daysLeft > 0
+                  ? ` (${daysLeft} day${daysLeft !== 1 ? "s" : ""} left)`
+                  : " (Deadline passed)"}
               </span>
             </div>
           </div>
@@ -133,7 +160,7 @@ function InternshipDetail() {
                         score >= 75
                           ? "#198754"
                           : score >= 50
-                            ? "#ffc107"
+                            ? "#e6a817"
                             : "#dc3545",
                     }}
                   >
@@ -171,6 +198,13 @@ function InternshipDetail() {
               </div>
             )}
 
+            {/* Apply error */}
+            {applyError && (
+              <div className="alert alert-danger py-2 px-3 small rounded-3 mb-3">
+                ⚠️ {applyError}
+              </div>
+            )}
+
             {/* Apply button */}
             <div className="d-grid">
               {!currentUser ? (
@@ -196,8 +230,19 @@ function InternshipDetail() {
                 <button
                   className="btn btn-primary btn-lg rounded-3"
                   onClick={handleApply}
+                  disabled={applying}
                 >
-                  Apply Now →
+                  {applying ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                      />
+                      Applying...
+                    </>
+                  ) : (
+                    "Apply Now →"
+                  )}
                 </button>
               )}
             </div>

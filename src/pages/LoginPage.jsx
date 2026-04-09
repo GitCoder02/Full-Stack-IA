@@ -1,62 +1,73 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 function LoginPage() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  // Clear error when user starts typing again
+  function handleEmailChange(e) {
+    setEmail(e.target.value)
+    if (error) setError('')
+  }
 
-    const result = login(email, password);
+  function handlePasswordChange(e) {
+    setPassword(e.target.value)
+    if (error) setError('')
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    // CRITICAL: login() is async — must await it
+    const result = await login(email, password)
 
     if (!result.success) {
-      setError(result.message);
-      setLoading(false);
-      return;
+      setError(result.message || 'Login failed. Please try again.')
+      setLoading(false)
+      return
     }
 
-    // Redirect based on role
-    if (result.role === "admin") {
-      navigate("/admin");
+    if (result.role === 'admin') {
+      navigate('/admin')
     } else {
-      navigate("/dashboard");
+      navigate('/dashboard')
     }
   }
 
   return (
     <div
       className="min-vh-100 d-flex align-items-center justify-content-center"
-      style={{ background: "#f0f4f8" }}
+      style={{ background: '#f0f4f8' }}
     >
       <div className="w-100" style={{ maxWidth: 440 }}>
         <div className="card border-0 shadow-lg rounded-4 p-4">
+
           {/* Header */}
           <div className="text-center mb-4">
             <h2 className="fw-bold">Welcome Back 👋</h2>
-            <p className="text-muted">
-              Sign in to your MIT Internship Portal account
-            </p>
+            <p className="text-muted">Sign in to your MIT Internship Portal account</p>
           </div>
 
-          {/* Demo credentials hint */}
+          {/* Demo credentials */}
           <div className="alert alert-info py-2 px-3 small mb-4 rounded-3">
             <strong>Demo Student:</strong> student@mit.edu / student123 <br />
             <strong>Demo Admin:</strong> admin@mit.edu / admin123
           </div>
 
-          {/* Error */}
+          {/* Error alert — visible, prominent */}
           {error && (
-            <div className="alert alert-danger py-2 px-3 small rounded-3">
-              {error}
+            <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 rounded-3 mb-3">
+              <span>⚠️</span>
+              <span className="small">{error}</span>
             </div>
           )}
 
@@ -66,11 +77,12 @@ function LoginPage() {
               <label className="form-label fw-semibold">Email Address</label>
               <input
                 type="email"
-                className="form-control form-control-lg rounded-3"
+                className={`form-control form-control-lg rounded-3 ${error ? 'is-invalid' : ''}`}
                 placeholder="you@mit.edu"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
                 required
+                autoComplete="email"
               />
             </div>
 
@@ -78,11 +90,12 @@ function LoginPage() {
               <label className="form-label fw-semibold">Password</label>
               <input
                 type="password"
-                className="form-control form-control-lg rounded-3"
+                className={`form-control form-control-lg rounded-3 ${error ? 'is-invalid' : ''}`}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 required
+                autoComplete="current-password"
               />
             </div>
 
@@ -91,12 +104,17 @@ function LoginPage() {
               className="btn btn-primary btn-lg w-100 rounded-3"
               disabled={loading}
             >
-              {loading ? "Signing in..." : "Login"}
+              {loading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" />
+                  Signing in...
+                </>
+              ) : 'Login'}
             </button>
           </form>
 
           <p className="text-center text-muted mt-4 mb-0">
-            Don't have an account?{" "}
+            Don't have an account?{' '}
             <Link to="/signup" className="text-primary fw-semibold">
               Sign Up
             </Link>
@@ -104,7 +122,7 @@ function LoginPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default LoginPage;
+export default LoginPage

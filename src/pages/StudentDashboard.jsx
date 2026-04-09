@@ -1,39 +1,36 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
 import { calculateMatch } from "../utils/matchScore";
 import MatchBar from "../components/MatchBar";
 import StatusBadge from "../components/StatusBadge";
-import { useEffect } from "react";
 
 function StudentDashboard() {
   const { currentUser } = useAuth();
   const { internships, getMyApplications, loadApplications } = useData();
-  // Load fresh applications from API every time dashboard mounts
+  const [appsLoading, setAppsLoading] = useState(true);
+
   useEffect(() => {
-    loadApplications();
-  }, []);
+    loadApplications().finally(() => setAppsLoading(false));
+  }, [loadApplications]);
 
   const myApps = getMyApplications(currentUser.id);
 
-  // Stats
   const stats = useMemo(() => {
     const applied = myApps.length;
     const underReview = myApps.filter(
       (a) => a.status === "Under Review",
     ).length;
     const selected = myApps.filter((a) => a.status === "Selected").length;
-    const rejected = myApps.filter((a) => a.status === "Rejected").length;
     const avgMatch = myApps.length
       ? Math.round(
           myApps.reduce((sum, a) => sum + a.matchScore, 0) / myApps.length,
         )
       : 0;
-    return { applied, underReview, selected, rejected, avgMatch };
+    return { applied, underReview, selected, avgMatch };
   }, [myApps]);
 
-  // Top 3 matching internships not yet applied to
   const topMatches = useMemo(() => {
     const appliedIds = myApps.map((a) => a.internshipId);
     return internships
@@ -46,16 +43,11 @@ function StudentDashboard() {
       .slice(0, 3);
   }, [internships, myApps, currentUser.skills]);
 
-  // Recent 3 applications
   const recentApps = useMemo(() => {
     return [...myApps]
       .sort((a, b) => new Date(b.appliedDate) - new Date(a.appliedDate))
-      .slice(0, 3)
-      .map((app) => ({
-        ...app,
-        internship: internships.find((i) => i.id === app.internshipId),
-      }));
-  }, [myApps, internships]);
+      .slice(0, 3);
+  }, [myApps]);
 
   const statCards = [
     {
@@ -81,7 +73,6 @@ function StudentDashboard() {
 
   return (
     <div className="container py-5" style={{ maxWidth: 1100 }}>
-      {/* Welcome */}
       <div className="mb-5">
         <h2 className="fw-bold mb-1">
           Welcome back, {currentUser.name.split(" ")[0]} 👋
@@ -91,7 +82,7 @@ function StudentDashboard() {
         </p>
       </div>
 
-      {/* ── STAT CARDS ── */}
+      {/* Stat cards */}
       <div className="row g-3 mb-5">
         {statCards.map((card) => (
           <div key={card.label} className="col-6 col-md-3">
@@ -99,9 +90,18 @@ function StudentDashboard() {
               className={`card border-0 shadow-sm rounded-4 p-4 h-100 border-start border-4 border-${card.color}`}
             >
               <div className="fs-2 mb-2">{card.icon}</div>
-              <div className={`fs-3 fw-bold text-${card.color}`}>
-                {card.value}
-              </div>
+              {appsLoading ? (
+                <div className="placeholder-glow">
+                  <span
+                    className="placeholder col-6 rounded d-block"
+                    style={{ height: 32 }}
+                  />
+                </div>
+              ) : (
+                <div className={`fs-3 fw-bold text-${card.color}`}>
+                  {card.value}
+                </div>
+              )}
               <div className="text-muted small">{card.label}</div>
             </div>
           </div>
@@ -109,9 +109,8 @@ function StudentDashboard() {
       </div>
 
       <div className="row g-4">
-        {/* ── LEFT COLUMN ── */}
+        {/* LEFT */}
         <div className="col-lg-5">
-          {/* Skills card */}
           <div className="card border-0 shadow-sm rounded-4 p-4 mb-4">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">🛠 Your Skills</h5>
@@ -144,7 +143,6 @@ function StudentDashboard() {
             )}
           </div>
 
-          {/* Quick links */}
           <div className="card border-0 shadow-sm rounded-4 p-4">
             <h5 className="fw-bold mb-3">⚡ Quick Actions</h5>
             <div className="d-grid gap-2">
@@ -167,9 +165,8 @@ function StudentDashboard() {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ── */}
+        {/* RIGHT */}
         <div className="col-lg-7">
-          {/* Top Matches */}
           <div className="card border-0 shadow-sm rounded-4 p-4 mb-4">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">🎯 Top Matches For You</h5>
@@ -189,7 +186,9 @@ function StudentDashboard() {
               </div>
             ) : topMatches.length === 0 ? (
               <p className="text-muted mb-0">
-                You've applied to all matching internships!
+                {appsLoading
+                  ? "Loading..."
+                  : "You've applied to all matching internships!"}
               </p>
             ) : (
               <div className="d-flex flex-column gap-3">
@@ -224,7 +223,6 @@ function StudentDashboard() {
             )}
           </div>
 
-          {/* Recent Applications */}
           <div className="card border-0 shadow-sm rounded-4 p-4">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">📂 Recent Applications</h5>
@@ -233,7 +231,25 @@ function StudentDashboard() {
               </Link>
             </div>
 
-            {recentApps.length === 0 ? (
+            {appsLoading ? (
+              <div className="d-flex flex-column gap-3">
+                {[1, 2].map((n) => (
+                  <div
+                    key={n}
+                    className="p-3 rounded-3 border placeholder-glow"
+                  >
+                    <span
+                      className="placeholder col-6 rounded d-block mb-2"
+                      style={{ height: 16 }}
+                    />
+                    <span
+                      className="placeholder col-4 rounded d-block"
+                      style={{ height: 12 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : recentApps.length === 0 ? (
               <div className="text-center py-3">
                 <p className="text-muted mb-2">No applications yet</p>
                 <Link to="/internships" className="btn btn-primary btn-sm">

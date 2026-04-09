@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 
 const DataContext = createContext();
 
@@ -9,15 +15,10 @@ export function DataProvider({ children }) {
   const [applications, setApplications] = useState([]);
 
   useEffect(() => {
-    // Internships are public — always load on mount
     loadInternships();
-
-    // Applications — load only if user already has a token (returning user)
     if (getToken()) {
       loadApplications();
     }
-
-    // When user logs out — clear applications from state
     window.addEventListener("user-logout", handleLogout);
     return () => window.removeEventListener("user-logout", handleLogout);
   }, []);
@@ -25,8 +26,6 @@ export function DataProvider({ children }) {
   function handleLogout() {
     setApplications([]);
   }
-
-  // ── INTERNSHIPS ────────────────────────────────────────────────────────
 
   async function loadInternships() {
     try {
@@ -38,10 +37,9 @@ export function DataProvider({ children }) {
     }
   }
 
-  // ── APPLICATIONS ───────────────────────────────────────────────────────
-
-  // Called by student pages on mount — loads this student's applications
-  async function loadApplications() {
+  // useCallback — makes loadApplications a stable reference
+  // so pages can safely include it in useEffect dependency arrays
+  const loadApplications = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     try {
@@ -53,10 +51,9 @@ export function DataProvider({ children }) {
     } catch (error) {
       console.error("Load applications error:", error);
     }
-  }
+  }, []);
 
-  // Called by admin dashboard on mount — loads ALL applications
-  async function loadAllApplications() {
+  const loadAllApplications = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     try {
@@ -68,9 +65,8 @@ export function DataProvider({ children }) {
     } catch (error) {
       console.error("Load all applications error:", error);
     }
-  }
+  }, []);
 
-  // STUDENT — apply to an internship
   async function applyToInternship(studentId, internshipId, matchScore) {
     const token = getToken();
     try {
@@ -91,17 +87,14 @@ export function DataProvider({ children }) {
     }
   }
 
-  // Returns applications for the logged-in student
-  function getMyApplications(studentId) {
+  function getMyApplications() {
     return applications;
   }
 
-  // Check if student already applied to an internship
   function hasApplied(studentId, internshipId) {
     return applications.some((a) => a.internshipId === internshipId);
   }
 
-  // ADMIN — update application status
   async function updateApplicationStatus(appId, newStatus) {
     const token = getToken();
     try {
@@ -123,7 +116,6 @@ export function DataProvider({ children }) {
     }
   }
 
-  // ADMIN — add new internship
   async function addInternship(internshipData) {
     const token = getToken();
     try {
@@ -142,7 +134,6 @@ export function DataProvider({ children }) {
     }
   }
 
-  // ADMIN — edit internship
   async function editInternship(id, internshipData) {
     const token = getToken();
     try {
@@ -163,7 +154,6 @@ export function DataProvider({ children }) {
     }
   }
 
-  // ADMIN — delete internship
   async function deleteInternship(id) {
     const token = getToken();
     try {

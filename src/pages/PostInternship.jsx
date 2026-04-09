@@ -1,48 +1,88 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useData } from "../context/DataContext";
 import { ALL_SKILLS, DOMAINS, LOCATIONS } from "../data/skills";
 
+const EMPTY_FORM = {
+  company: "",
+  role: "",
+  description: "",
+  domain: "",
+  location: "",
+  stipend: "",
+  deadline: "",
+  requiredSkills: [],
+};
+
+// ── WRAPPER ───────────────────────────────────────────────────────────────────
+// Handles loading state and not-found — keeps inner form clean
 function PostInternship() {
-  const { id } = useParams(); // exists only in edit mode
+  const { id } = useParams();
   const isEditMode = Boolean(id);
+  const { internships } = useData();
+
+  // Edit mode — wait for internships to load
+  if (isEditMode && internships.length === 0) {
+    return (
+      <div className="container py-5 text-center">
+        <div className="spinner-border text-primary" role="status" />
+        <p className="text-muted mt-3">Loading internship data...</p>
+      </div>
+    );
+  }
+
+  const existingInternship = isEditMode
+    ? internships.find((i) => i.id === id)
+    : null;
+
+  if (isEditMode && !existingInternship) {
+    return (
+      <div className="container py-5 text-center">
+        <h4>Internship not found</h4>
+      </div>
+    );
+  }
+
+  // key={id || 'new'} ensures the form fully remounts when switching
+  // between new and edit — prevents stale state
+  return (
+    <PostInternshipForm
+      key={id || "new"}
+      isEditMode={isEditMode}
+      existingInternship={existingInternship}
+      internshipId={id}
+    />
+  );
+}
+
+// ── INNER FORM ────────────────────────────────────────────────────────────────
+// Receives existingInternship as a prop — uses lazy useState initializer
+// No useEffect needed — zero ESLint warnings
+function PostInternshipForm({ isEditMode, existingInternship, internshipId }) {
   const navigate = useNavigate();
-  const { internships, addInternship, editInternship } = useData();
+  const { addInternship, editInternship } = useData();
 
-  const empty = {
-    company: "",
-    role: "",
-    description: "",
-    domain: "",
-    location: "",
-    stipend: "",
-    deadline: "",
-    requiredSkills: [],
-  };
+  // Lazy initializer — runs once on mount, reads from existingInternship prop
+  const [form, setForm] = useState(() => {
+    if (isEditMode && existingInternship) {
+      return {
+        company: existingInternship.company,
+        role: existingInternship.role,
+        description: existingInternship.description,
+        domain: existingInternship.domain,
+        location: existingInternship.location,
+        stipend: existingInternship.stipend,
+        deadline: existingInternship.deadline,
+        requiredSkills: existingInternship.requiredSkills,
+      };
+    }
+    return EMPTY_FORM;
+  });
 
-  const [form, setForm] = useState(empty);
   const [skillSearch, setSkillSearch] = useState("");
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
-
-  // If edit mode — prefill form
-  useEffect(() => {
-    if (isEditMode) {
-      const existing = internships.find((i) => i.id === id);
-      if (existing) {
-        setForm({
-          company: existing.company,
-          role: existing.role,
-          description: existing.description,
-          domain: existing.domain,
-          location: existing.location,
-          stipend: existing.stipend,
-          deadline: existing.deadline,
-          requiredSkills: existing.requiredSkills,
-        });
-      }
-    }
-  }, [id, internships, isEditMode]);
+  const [saving, setSaving] = useState(false);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -66,7 +106,7 @@ function PostInternship() {
     if (!form.role.trim()) e.role = "Role title is required";
     if (!form.description.trim()) e.description = "Description is required";
     if (!form.domain) e.domain = "Please select a domain";
-    if (!form.location.trim()) e.location = "Location is required";
+    if (!form.location) e.location = "Please select a location";
     if (!form.stipend || isNaN(form.stipend) || Number(form.stipend) <= 0)
       e.stipend = "Enter a valid stipend amount";
     if (!form.deadline) e.deadline = "Deadline is required";
@@ -75,7 +115,7 @@ function PostInternship() {
     return e;
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) {
@@ -83,14 +123,16 @@ function PostInternship() {
       return;
     }
 
+    setSaving(true);
     const data = { ...form, stipend: Number(form.stipend) };
 
     if (isEditMode) {
-      editInternship(id, data);
+      await editInternship(internshipId, data);
     } else {
-      addInternship(data);
+      await addInternship(data);
     }
 
+    setSaving(false);
     setSubmitted(true);
     setTimeout(() => navigate("/admin"), 1500);
   }
@@ -113,7 +155,6 @@ function PostInternship() {
 
   return (
     <div className="container py-5" style={{ maxWidth: 800 }}>
-      {/* Header */}
       <div className="mb-4">
         <button
           className="btn btn-link text-muted ps-0 mb-2"
@@ -133,7 +174,6 @@ function PostInternship() {
 
       <div className="card border-0 shadow-sm rounded-4 p-4 p-md-5">
         <form onSubmit={handleSubmit}>
-          {/* Row 1 — Company + Role */}
           <div className="row g-3 mb-3">
             <div className="col-md-6">
               <label className="form-label fw-semibold">Company Name *</label>
@@ -165,14 +205,13 @@ function PostInternship() {
             </div>
           </div>
 
-          {/* Description */}
           <div className="mb-3">
             <label className="form-label fw-semibold">Description *</label>
             <textarea
               name="description"
               rows={4}
               className={`form-control rounded-3 ${errors.description ? "is-invalid" : ""}`}
-              placeholder="Describe the internship responsibilities and requirements..."
+              placeholder="Describe the internship responsibilities..."
               value={form.description}
               onChange={handleChange}
             />
@@ -181,7 +220,6 @@ function PostInternship() {
             )}
           </div>
 
-          {/* Row 2 — Domain + Location */}
           <div className="row g-3 mb-3">
             <div className="col-md-6">
               <label className="form-label fw-semibold">Domain *</label>
@@ -223,7 +261,6 @@ function PostInternship() {
             </div>
           </div>
 
-          {/* Row 3 — Stipend + Deadline */}
           <div className="row g-3 mb-4">
             <div className="col-md-6">
               <label className="form-label fw-semibold">
@@ -259,11 +296,9 @@ function PostInternship() {
             </div>
           </div>
 
-          {/* Required Skills */}
           <div className="mb-4">
             <label className="form-label fw-semibold">Required Skills *</label>
 
-            {/* Selected skills */}
             {form.requiredSkills.length > 0 && (
               <div className="d-flex flex-wrap gap-2 mb-3">
                 {form.requiredSkills.map((skill) => (
@@ -278,14 +313,13 @@ function PostInternship() {
                     onClick={() => toggleSkill(skill)}
                     title="Click to remove"
                   >
-                    {skill}{" "}
+                    {skill}
                     <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>✕</span>
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Skill search */}
             <input
               type="text"
               className="form-control rounded-3 mb-2"
@@ -294,7 +328,6 @@ function PostInternship() {
               onChange={(e) => setSkillSearch(e.target.value)}
             />
 
-            {/* Skill picker */}
             <div
               className={`d-flex flex-wrap gap-2 p-3 rounded-3 overflow-auto ${errors.requiredSkills ? "border border-danger" : "border"}`}
               style={{ maxHeight: 200, background: "#f8f9fa" }}
@@ -309,9 +342,9 @@ function PostInternship() {
                     style={{
                       fontSize: "0.78rem",
                       cursor: "pointer",
+                      userSelect: "none",
                       backgroundColor: selected ? "#198754" : "#e9ecef",
                       color: selected ? "#fff" : "#495057",
-                      userSelect: "none",
                     }}
                   >
                     {selected ? "✓ " : "+ "}
@@ -327,10 +360,25 @@ function PostInternship() {
             )}
           </div>
 
-          {/* Submit */}
           <div className="d-flex gap-3">
-            <button type="submit" className="btn btn-primary rounded-3 px-5">
-              {isEditMode ? "💾 Save Changes" : "🚀 Post Internship"}
+            <button
+              type="submit"
+              className="btn btn-primary rounded-3 px-5"
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                  />
+                  Saving...
+                </>
+              ) : isEditMode ? (
+                "💾 Save Changes"
+              ) : (
+                "🚀 Post Internship"
+              )}
             </button>
             <button
               type="button"
