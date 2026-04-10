@@ -4,133 +4,148 @@ A full-stack web application for managing and discovering internship opportuniti
 
 ## Features
 
-- **Student Dashboard**: Browse and apply for internships
+- **Student Dashboard**: Browse, filter, and apply for internships
 - **Skill Matching**: Automatic skill-based matching score for opportunities
 - **Application Tracker**: Track application status and progress
 - **Admin Dashboard**: Post and manage internship listings
-- **User Authentication**: Login and signup with role-based access
+- **User Authentication**: Login and signup with student/admin role-based access
 - **Profile Management**: Manage student profiles and skills
 
 ## Tech Stack
 
-- **Frontend**: React 18 + Vite
+- **Frontend**: React + Vite
+- **Backend**: Node.js + Express + MongoDB
 - **Styling**: Bootstrap 5
-- **Build Tool**: Vite
-- **Testing**: ESLint
+- **Auth**: JWT-based role authentication
+- **Linting**: ESLint
 
-## Installation
+## Repository Structure
 
-### Prerequisites
+```text
+.
+├── backend/              # Express API server
+│   ├── config/           # Database and environment configuration
+│   ├── middleware/       # Auth and admin middleware
+│   ├── models/           # Mongoose models
+│   ├── routes/           # API routes
+│   ├── seed/             # Seed data scripts
+│   └── server.js         # Backend entry point
+├── public/               # Static frontend assets
+├── src/                  # React frontend source code
+│   ├── components/       # Reusable UI components
+│   ├── context/          # React Context providers
+│   ├── data/             # Static data files
+│   ├── pages/            # Page views
+│   └── utils/            # Helper utilities
+├── package.json          # Frontend dependencies and scripts
+└── README.md             # Project documentation
+```
 
-- **Node.js** (v16 or higher)
-- **npm** (comes with Node.js)
+## Prerequisites
 
-### Step 1: Clone the Repository
+- Node.js v16 or higher
+- npm (included with Node.js)
+- MongoDB instance or local MongoDB server
+
+## Setup
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/GitCoder02/Full-Stack-IA.git
 cd Full-Stack-IA
 ```
 
-### Step 2: Install Dependencies
+### 2. Install frontend dependencies
 
 ```bash
 npm install
 ```
 
-This will install all required packages including:
+### 3. Install backend dependencies
 
-- React and React DOM
-- Vite
-- Bootstrap and Popper.js
-- ESLint
-
-### Step 3: Create Environment File
-
-Create a `.env` file in the project root (do **not** commit this file):
-
-```
-VITE_API_URL=http://localhost:3001
-# Add other environment variables as needed
+```bash
+cd backend
+npm install
+cd ..
 ```
 
-**Note**: `.env` is listed in `.gitignore` to prevent accidental commits.
+### 4. Configure environment variables
 
-### Step 4: Start Development Server
+Create a `.env` file inside the `backend/` folder with values similar to:
+
+```env
+PORT=3001
+MONGO_URI=mongodb://localhost:27017/internship_portal
+JWT_SECRET=your_jwt_secret_here
+```
+
+> Do not commit `.env` to version control.
+
+## Running the application
+
+### Start the backend
+
+```bash
+cd backend
+npm start
+```
+
+This starts the Express API server on `http://localhost:3001`.
+
+### Start the frontend
+
+In the project root:
 
 ```bash
 npm run dev
 ```
 
-The development server will start at `http://localhost:5173` with Hot Module Replacement (HMR) enabled.
+The frontend runs at `http://localhost:5173` by default.
 
-### Build for Production
+## Available Scripts
 
-```bash
-npm run build
-```
+### Frontend scripts (root)
 
-This creates an optimized production build in the `dist/` folder.
+- `npm run dev` - Start Vite development server
+- `npm run build` - Build frontend for production
+- `npm run preview` - Preview production build locally
+- `npm run lint` - Run ESLint checks
 
-### Preview Production Build
+### Backend scripts (`backend/package.json`)
 
-```bash
-npm run preview
-```
+- `npm start` - Start backend server using Node
+- `npm run dev` - Start backend server using nodemon
 
-## Project Structure
+## Usage
 
-```
-src/
-├── components/        # Reusable React components
-├── context/          # React Context API for state management
-├── data/             # Static data (internships, skills)
-├── pages/            # Page components
-├── utils/            # Utility functions
-├── App.jsx           # Main App component
-├── index.css         # Global styles
-└── main.jsx          # Entry point
-```
+1. Run the backend and frontend concurrently.
+2. Open the frontend in your browser at `http://localhost:5173`.
+3. Sign up or log in as a student or admin.
+4. Browse internships, apply to opportunities, and track status.
+5. Admins can create and manage internship postings.
 
-## GitHub Repository
+## Notes
 
-This project is hosted on GitHub at: [https://github.com/GitCoder02/Full-Stack-IA](https://github.com/GitCoder02/Full-Stack-IA)
+- The frontend expects API requests to be handled by the backend at `http://localhost:3001`.
+- Update your API base URL if you change the backend port.
+- Keep `node_modules/` and `.env` excluded from source control.
 
-### Clone from GitHub
+## GitHub
+
+Clone the repository:
 
 ```bash
 git clone https://github.com/GitCoder02/Full-Stack-IA.git
 ```
 
-### Push Changes to GitHub
-
-After making changes locally, commit and push:
+Commit and push changes:
 
 ```bash
-# Stage changes
 git add .
-
-# Commit with a descriptive message
-git commit -m "Your commit message here"
-
-# Push to main branch
+git commit -m "Update README and project setup"
 git push origin main
 ```
-
-**Important**: The repository is configured to exclude `node_modules/` and `.env` files via `.gitignore` to keep the repository clean and secure.
-
-## Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Create production build
-- `npm run preview` - Preview production build locally
-- `npm run lint` - Run ESLint
-
-## Notes
-
-- `.gitignore` automatically excludes `node_modules/`, `.env`, and other common artifacts
-- Never commit sensitive information like API keys or credentials
-- Always pull latest changes before starting work: `git pull origin main`
 
 ## License
 
@@ -138,4 +153,4 @@ This project is part of MIT Internship Portal.
 
 ## Support
 
-For issues or questions, please check the GitHub repository issues page or contact the development team.
+For questions or issues, refer to the repository issues page or contact the development team.
