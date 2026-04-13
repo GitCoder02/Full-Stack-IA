@@ -1,25 +1,30 @@
-/* eslint-disable no-undef */
 const express = require("express");
 const router = express.Router();
 const Application = require("../models/Application");
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const sendEmail = require("../utils/sendEmail");
 
-// Formats application doc — handles both populated and unpopulated internship
+// Format for student-facing responses (no resumeData — too large)
 const formatApplication = (doc) => {
   const isPopulated = doc.internship && doc.internship._id;
-
   return {
     id: doc._id.toString(),
-    studentId: doc.student._id
-      ? doc.student._id.toString()
-      : doc.student.toString(),
+    studentId:
+      doc.student && doc.student._id
+        ? doc.student._id.toString()
+        : doc.student
+          ? doc.student.toString()
+          : null,
     internshipId: isPopulated
       ? doc.internship._id.toString()
-      : doc.internship.toString(),
+      : doc.internship
+        ? doc.internship.toString()
+        : null,
     appliedDate: doc.appliedDate,
     status: doc.status,
     matchScore: doc.matchScore,
+    resumeName: doc.resumeName || null,
     internship: isPopulated
       ? {
           id: doc.internship._id.toString(),
@@ -36,7 +41,6 @@ const formatApplication = (doc) => {
 };
 
 // ── GET /api/applications/mine ── Student only
-// Returns all applications for the logged-in student
 router.get("/mine", authMiddleware, async (req, res) => {
   try {
     const applications = await Application.find({ student: req.user._id })
@@ -51,7 +55,7 @@ router.get("/mine", authMiddleware, async (req, res) => {
 });
 
 // ── GET /api/applications/all ── Admin only
-// Returns all applications across all students
+// Includes student skills + resumeData so admin can view resume
 router.get("/all", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const applications = await Application.find()
@@ -61,9 +65,10 @@ router.get("/all", authMiddleware, adminMiddleware, async (req, res) => {
 
     const formatted = applications.map((app) => ({
       ...formatApplication(app),
-      studentName: app.student.name,
-      studentEmail: app.student.email,
-      studentSkills: app.student.skills,
+      studentName: app.student ? app.student.name : "Unknown",
+      studentEmail: app.student ? app.student.email : "",
+      studentSkills: app.student ? app.student.skills : [],
+      resumeData: app.resumeData || null, // full base64 for admin
     }));
 
     res.json(formatted);
@@ -73,11 +78,10 @@ router.get("/all", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /api/applications ── Student only
-// Apply to an internship
+// ── POST /api/applications ── Student only — apply to internship
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { internshipId, matchScore } = req.body;
+    const { internshipId, matchScore, resumeData, resumeName } = req.body;
 
     if (!internshipId || matchScore === undefined) {
       return res
@@ -85,7 +89,7 @@ router.post("/", authMiddleware, async (req, res) => {
         .json({ message: "internshipId and matchScore are required" });
     }
 
-    // Check if already applied
+    // Check already applied
     const existing = await Application.findOne({
       student: req.user._id,
       internship: internshipId,
@@ -96,17 +100,59 @@ router.post("/", authMiddleware, async (req, res) => {
         .json({ message: "Already applied to this internship" });
     }
 
-    // Create application
-    const application = await Application.create({
+    const applicationData = {
       student: req.user._id,
       internship: internshipId,
       matchScore: Number(matchScore),
       appliedDate: new Date().toISOString().split("T")[0],
       status: "Applied",
-    });
+    };
 
-    // Populate internship before sending response
+    if (resumeData) applicationData.resumeData = resumeData;
+    if (resumeName) applicationData.resumeName = resumeName;
+
+    const application = await Application.create(applicationData);
     await application.populate("internship");
+
+    // Send confirmation email to student
+    const intern = application.internship;
+    sendEmail(
+      req.user.email,
+      `Application Submitted – ${intern.role} at ${intern.company}`,
+      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+        <h2 style="color:#0d6efd;margin-bottom:8px">Application Submitted!</h2>
+        <p>Hi <b>${req.user.name}</b>,</p>
+        <p>Your application has been submitted successfully. Here are your details:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr style="background:#f8f9fa">
+            <td style="padding:10px 12px;font-weight:bold;width:140px">Role</td>
+            <td style="padding:10px 12px">${intern.role}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:bold;background:#f8f9fa">Company</td>
+            <td style="padding:10px 12px">${intern.company}</td>
+          </tr>
+          <tr style="background:#f8f9fa">
+            <td style="padding:10px 12px;font-weight:bold">Location</td>
+            <td style="padding:10px 12px">${intern.location}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:bold;background:#f8f9fa">Match Score</td>
+            <td style="padding:10px 12px"><b style="color:#198754">${application.matchScore}%</b></td>
+          </tr>
+          <tr style="background:#f8f9fa">
+            <td style="padding:10px 12px;font-weight:bold">Applied On</td>
+            <td style="padding:10px 12px">${application.appliedDate}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;font-weight:bold;background:#f8f9fa">Resume</td>
+            <td style="padding:10px 12px">${resumeName ? resumeName : "Not attached"}</td>
+          </tr>
+        </table>
+        <p>You can track your application status on the portal.</p>
+        <p style="color:#6c757d;font-size:12px;margin-top:24px">MIT Smart Internship Portal · ICT 3230</p>
+      </div>`,
+    );
 
     res.status(201).json(formatApplication(application));
   } catch (error) {
@@ -119,7 +165,6 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // ── PUT /api/applications/:id/status ── Admin only
-// Update application status
 router.put("/:id/status", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { status } = req.body;
@@ -133,10 +178,58 @@ router.put("/:id/status", authMiddleware, adminMiddleware, async (req, res) => {
       req.params.id,
       { status },
       { new: true },
-    ).populate("internship");
+    )
+      .populate("internship")
+      .populate("student", "name email");
 
     if (!application) {
       return res.status(404).json({ message: "Application not found" });
+    }
+
+    const intern = application.internship;
+    const student = application.student;
+
+    // Send email only for meaningful outcomes — not for every status change
+    if (status === "Selected") {
+      sendEmail(
+        student.email,
+        `Congratulations! Selected for ${intern.role} at ${intern.company}`,
+        `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+          <h2 style="color:#198754">Congratulations! 🎉</h2>
+          <p>Hi <b>${student.name}</b>,</p>
+          <p>We are delighted to inform you that you have been <b style="color:#198754">selected</b> for the following position:</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr style="background:#f8f9fa">
+              <td style="padding:10px 12px;font-weight:bold;width:140px">Role</td>
+              <td style="padding:10px 12px">${intern.role}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 12px;font-weight:bold;background:#f8f9fa">Company</td>
+              <td style="padding:10px 12px">${intern.company}</td>
+            </tr>
+            <tr style="background:#f8f9fa">
+              <td style="padding:10px 12px;font-weight:bold">Location</td>
+              <td style="padding:10px 12px">${intern.location}</td>
+            </tr>
+          </table>
+          <p>The company will reach out to you shortly with the next steps. Best of luck!</p>
+          <p style="color:#6c757d;font-size:12px;margin-top:24px">MIT Smart Internship Portal · ICT 3230</p>
+        </div>`,
+      );
+    } else if (status === "Rejected") {
+      sendEmail(
+        student.email,
+        `Application Update – ${intern.role} at ${intern.company}`,
+        `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+          <h2 style="color:#212529">Application Update</h2>
+          <p>Hi <b>${student.name}</b>,</p>
+          <p>Thank you for applying to <b>${intern.role}</b> at <b>${intern.company}</b>.</p>
+          <p>After careful review, we regret to inform you that your application has not been taken forward at this time.</p>
+          <p>Don't be discouraged — every application is a learning experience. Keep building your skills and applying to other opportunities on the portal.</p>
+          <p style="margin-top:16px">Best of luck on your internship journey!</p>
+          <p style="color:#6c757d;font-size:12px;margin-top:24px">MIT Smart Internship Portal · ICT 3230</p>
+        </div>`,
+      );
     }
 
     res.json(formatApplication(application));

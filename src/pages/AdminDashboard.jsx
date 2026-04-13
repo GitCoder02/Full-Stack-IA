@@ -2,13 +2,34 @@ import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "../context/DataContext";
 
+const SKILL_CATEGORIES = [
+  "Web Development",
+  "Programming",
+  "Data Science",
+  "AI / ML",
+  "Mobile Development",
+  "Other",
+];
+
 function AdminDashboard() {
-  const { internships, applications, deleteInternship, loadAllApplications } =
-    useData();
+  const {
+    internships,
+    applications,
+    skills,
+    deleteInternship,
+    loadAllApplications,
+    addSkill,
+  } = useData();
+
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Load all applications on mount
+  // Add Skill state
+  const [newSkillName, setNewSkillName] = useState("");
+  const [newSkillCategory, setNewSkillCategory] = useState("Web Development");
+  const [skillAdding, setSkillAdding] = useState(false);
+  const [skillMessage, setSkillMessage] = useState(null); // { type: 'success'|'error', text }
+
   useEffect(() => {
     loadAllApplications();
   }, [loadAllApplications]);
@@ -43,6 +64,27 @@ function AdminDashboard() {
     setConfirmDelete(null);
   }
 
+  async function handleAddSkill() {
+    if (!newSkillName.trim()) {
+      setSkillMessage({ type: "error", text: "Please enter a skill name" });
+      return;
+    }
+    setSkillAdding(true);
+    setSkillMessage(null);
+    const result = await addSkill(newSkillName.trim(), newSkillCategory);
+    setSkillAdding(false);
+    if (result.success) {
+      setSkillMessage({
+        type: "success",
+        text: `"${newSkillName.trim()}" added successfully`,
+      });
+      setNewSkillName("");
+      setTimeout(() => setSkillMessage(null), 3000);
+    } else {
+      setSkillMessage({ type: "error", text: result.message });
+    }
+  }
+
   const daysLeft = (deadline) =>
     Math.ceil((new Date(deadline) - new Date()) / (1000 * 60 * 60 * 24));
 
@@ -62,7 +104,7 @@ function AdminDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="row g-3 mb-5">
+      <div className="row g-3 mb-4">
         {[
           {
             label: "Total Listings",
@@ -101,6 +143,82 @@ function AdminDashboard() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── ADD NEW SKILL ── */}
+      <div className="card border-0 shadow-sm rounded-4 p-4 mb-4">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h6 className="fw-bold mb-0">🛠 Manage Skills</h6>
+            <p className="text-muted small mb-0">
+              {skills.length} skills available — new skills appear in student
+              profiles and internship forms
+            </p>
+          </div>
+        </div>
+
+        <div className="row g-2 align-items-end">
+          <div className="col-md-5">
+            <label className="form-label small fw-semibold text-muted">
+              Skill Name
+            </label>
+            <input
+              type="text"
+              className="form-control rounded-3"
+              placeholder='e.g. "Rust" or "Kubernetes"'
+              value={newSkillName}
+              onChange={(e) => {
+                setNewSkillName(e.target.value);
+                setSkillMessage(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && handleAddSkill()}
+            />
+          </div>
+          <div className="col-md-4">
+            <label className="form-label small fw-semibold text-muted">
+              Category
+            </label>
+            <select
+              className="form-select rounded-3"
+              value={newSkillCategory}
+              onChange={(e) => setNewSkillCategory(e.target.value)}
+            >
+              {SKILL_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="col-md-3">
+            <button
+              className="btn btn-primary rounded-3 w-100"
+              onClick={handleAddSkill}
+              disabled={skillAdding}
+            >
+              {skillAdding ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                  />
+                  Adding...
+                </>
+              ) : (
+                "+ Add Skill"
+              )}
+            </button>
+          </div>
+        </div>
+
+        {skillMessage && (
+          <div
+            className={`alert alert-${skillMessage.type === "success" ? "success" : "danger"} py-2 px-3 small rounded-3 mt-3 mb-0`}
+          >
+            {skillMessage.type === "success" ? "✓ " : "⚠️ "}
+            {skillMessage.text}
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -229,9 +347,15 @@ function AdminDashboard() {
                       INTERNSHIP
                     </th>
                     <th className="py-3 fw-semibold text-muted small">
-                      APPLIED ON
+                      SKILLS
+                    </th>
+                    <th className="py-3 fw-semibold text-muted small">
+                      APPLIED
                     </th>
                     <th className="py-3 fw-semibold text-muted small">MATCH</th>
+                    <th className="py-3 fw-semibold text-muted small">
+                      RESUME
+                    </th>
                     <th className="py-3 fw-semibold text-muted small">
                       STATUS
                     </th>
@@ -286,7 +410,7 @@ function AdminDashboard() {
   );
 }
 
-// Separate component so each row manages its own status dropdown state
+// ── APPLICANT ROW ─────────────────────────────────────────────────────────────
 function ApplicantRow({ app }) {
   const { updateApplicationStatus } = useData();
   const [status, setStatus] = useState(app.status);
@@ -294,6 +418,24 @@ function ApplicantRow({ app }) {
   function handleStatusChange(newStatus) {
     setStatus(newStatus);
     updateApplicationStatus(app.id, newStatus);
+  }
+
+  // Convert base64 data URL to Blob and open in new tab
+  function handleViewResume() {
+    if (!app.resumeData) return;
+    try {
+      const base64 = app.resumeData.split(",")[1];
+      const binary = atob(base64);
+      const array = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        array[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([array], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch {
+      alert("Could not open resume. The file may be corrupted.");
+    }
   }
 
   const colorMap = {
@@ -305,19 +447,59 @@ function ApplicantRow({ app }) {
 
   return (
     <tr>
-      {/* Student info — available from loadAllApplications */}
+      {/* Student */}
       <td className="px-4 py-3">
         <p className="fw-bold mb-0">{app.studentName || "Unknown"}</p>
         <p className="text-muted small mb-0">{app.studentEmail || ""}</p>
       </td>
-      {/* Internship — already populated from API */}
+
+      {/* Internship */}
       <td className="py-3">
         <p className="fw-bold mb-0 small">
           {app.internship?.role || "Unknown"}
         </p>
         <p className="text-muted mb-0 small">{app.internship?.company}</p>
       </td>
+
+      {/* Student skills */}
+      <td className="py-3" style={{ maxWidth: 180 }}>
+        {app.studentSkills && app.studentSkills.length > 0 ? (
+          <div className="d-flex flex-wrap gap-1">
+            {app.studentSkills.slice(0, 4).map((skill) => (
+              <span
+                key={skill}
+                className="badge rounded-pill"
+                style={{
+                  backgroundColor: "#e9ecef",
+                  color: "#495057",
+                  fontSize: "0.7rem",
+                }}
+              >
+                {skill}
+              </span>
+            ))}
+            {app.studentSkills.length > 4 && (
+              <span
+                className="badge rounded-pill"
+                style={{
+                  backgroundColor: "#e9ecef",
+                  color: "#6c757d",
+                  fontSize: "0.7rem",
+                }}
+              >
+                +{app.studentSkills.length - 4}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted small">No skills</span>
+        )}
+      </td>
+
+      {/* Applied date */}
       <td className="text-muted small">{app.appliedDate}</td>
+
+      {/* Match score */}
       <td>
         <span
           className="badge rounded-pill px-3 py-2 text-white"
@@ -334,6 +516,23 @@ function ApplicantRow({ app }) {
           {app.matchScore}%
         </span>
       </td>
+
+      {/* Resume */}
+      <td>
+        {app.resumeData ? (
+          <button
+            className="btn btn-outline-primary btn-sm rounded-3"
+            onClick={handleViewResume}
+            title={app.resumeName || "View Resume"}
+          >
+            📄 View
+          </button>
+        ) : (
+          <span className="text-muted small">—</span>
+        )}
+      </td>
+
+      {/* Status badge */}
       <td>
         <span
           className="badge rounded-pill px-3 py-2 text-white"
@@ -342,10 +541,12 @@ function ApplicantRow({ app }) {
           {status}
         </span>
       </td>
+
+      {/* Status dropdown */}
       <td>
         <select
           className="form-select form-select-sm rounded-3"
-          style={{ width: 160 }}
+          style={{ width: 150 }}
           value={status}
           onChange={(e) => handleStatusChange(e.target.value)}
         >

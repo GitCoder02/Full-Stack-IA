@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useData } from "../context/DataContext";
-import { ALL_SKILLS, DOMAINS, LOCATIONS } from "../data/skills";
+import { DOMAINS, LOCATIONS } from "../data/skills";
 
 const EMPTY_FORM = {
   company: "",
@@ -14,14 +14,12 @@ const EMPTY_FORM = {
   requiredSkills: [],
 };
 
-// ── WRAPPER ───────────────────────────────────────────────────────────────────
-// Handles loading state and not-found — keeps inner form clean
+// Wrapper — handles loading state so inner form always gets valid data
 function PostInternship() {
   const { id } = useParams();
   const isEditMode = Boolean(id);
   const { internships } = useData();
 
-  // Edit mode — wait for internships to load
   if (isEditMode && internships.length === 0) {
     return (
       <div className="container py-5 text-center">
@@ -43,8 +41,6 @@ function PostInternship() {
     );
   }
 
-  // key={id || 'new'} ensures the form fully remounts when switching
-  // between new and edit — prevents stale state
   return (
     <PostInternshipForm
       key={id || "new"}
@@ -55,14 +51,11 @@ function PostInternship() {
   );
 }
 
-// ── INNER FORM ────────────────────────────────────────────────────────────────
-// Receives existingInternship as a prop — uses lazy useState initializer
-// No useEffect needed — zero ESLint warnings
+// Inner form — uses lazy useState initializer, zero useEffect for form data
 function PostInternshipForm({ isEditMode, existingInternship, internshipId }) {
   const navigate = useNavigate();
-  const { addInternship, editInternship } = useData();
+  const { addInternship, editInternship, skills: allSkills } = useData();
 
-  // Lazy initializer — runs once on mount, reads from existingInternship prop
   const [form, setForm] = useState(() => {
     if (isEditMode && existingInternship) {
       return {
@@ -137,7 +130,7 @@ function PostInternshipForm({ isEditMode, existingInternship, internshipId }) {
     setTimeout(() => navigate("/admin"), 1500);
   }
 
-  const filteredSkills = ALL_SKILLS.filter((s) =>
+  const filteredSkills = allSkills.filter((s) =>
     s.toLowerCase().includes(skillSearch.toLowerCase()),
   );
 
@@ -296,6 +289,7 @@ function PostInternshipForm({ isEditMode, existingInternship, internshipId }) {
             </div>
           </div>
 
+          {/* Required Skills */}
           <div className="mb-4">
             <label className="form-label fw-semibold">Required Skills *</label>
 
@@ -328,31 +322,37 @@ function PostInternshipForm({ isEditMode, existingInternship, internshipId }) {
               onChange={(e) => setSkillSearch(e.target.value)}
             />
 
-            <div
-              className={`d-flex flex-wrap gap-2 p-3 rounded-3 overflow-auto ${errors.requiredSkills ? "border border-danger" : "border"}`}
-              style={{ maxHeight: 200, background: "#f8f9fa" }}
-            >
-              {filteredSkills.map((skill) => {
-                const selected = form.requiredSkills.includes(skill);
-                return (
-                  <span
-                    key={skill}
-                    onClick={() => toggleSkill(skill)}
-                    className="badge rounded-pill px-3 py-2"
-                    style={{
-                      fontSize: "0.78rem",
-                      cursor: "pointer",
-                      userSelect: "none",
-                      backgroundColor: selected ? "#198754" : "#e9ecef",
-                      color: selected ? "#fff" : "#495057",
-                    }}
-                  >
-                    {selected ? "✓ " : "+ "}
-                    {skill}
-                  </span>
-                );
-              })}
-            </div>
+            {allSkills.length === 0 ? (
+              <div className="text-muted small p-3 border rounded-3">
+                Loading skills...
+              </div>
+            ) : (
+              <div
+                className={`d-flex flex-wrap gap-2 p-3 rounded-3 overflow-auto ${errors.requiredSkills ? "border border-danger" : "border"}`}
+                style={{ maxHeight: 200, background: "#f8f9fa" }}
+              >
+                {filteredSkills.map((skill) => {
+                  const selected = form.requiredSkills.includes(skill);
+                  return (
+                    <span
+                      key={skill}
+                      onClick={() => toggleSkill(skill)}
+                      className="badge rounded-pill px-3 py-2"
+                      style={{
+                        fontSize: "0.78rem",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        backgroundColor: selected ? "#198754" : "#e9ecef",
+                        color: selected ? "#fff" : "#495057",
+                      }}
+                    >
+                      {selected ? "✓ " : "+ "}
+                      {skill}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             {errors.requiredSkills && (
               <div className="text-danger small mt-1">
                 {errors.requiredSkills}

@@ -25,11 +25,20 @@ const applicationSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    // Resume attached at time of applying — stored as base64 data URL
+    resumeData: {
+      type: String,
+      default: null,
+    },
+    resumeName: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true },
 );
 
-// Prevent a student from applying to the same internship twice
+// Prevent duplicate applications
 applicationSchema.index({ student: 1, internship: 1 }, { unique: true });
 
 module.exports = mongoose.model("Application", applicationSchema);

@@ -7,18 +7,18 @@ import {
 } from "react";
 
 const DataContext = createContext();
-
 const getToken = () => localStorage.getItem("token");
 
 export function DataProvider({ children }) {
   const [internships, setInternships] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [skills, setSkills] = useState([]);
 
   useEffect(() => {
     loadInternships();
-    if (getToken()) {
-      loadApplications();
-    }
+    loadSkills();
+    if (getToken()) loadApplications();
+
     window.addEventListener("user-logout", handleLogout);
     return () => window.removeEventListener("user-logout", handleLogout);
   }, []);
@@ -26,6 +26,40 @@ export function DataProvider({ children }) {
   function handleLogout() {
     setApplications([]);
   }
+
+  // ── SKILLS ──────────────────────────────────────────────────────────────
+
+  const loadSkills = useCallback(async () => {
+    try {
+      const res = await fetch("/api/skills");
+      const data = await res.json();
+      if (res.ok) setSkills(data.map((s) => s.name));
+    } catch (error) {
+      console.error("Load skills error:", error);
+    }
+  }, []);
+
+  async function addSkill(name, category) {
+    const token = getToken();
+    try {
+      const res = await fetch("/api/skills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, category }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, message: data.message };
+      setSkills((prev) => [...prev, data.name].sort());
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: "Server error" };
+    }
+  }
+
+  // ── INTERNSHIPS ──────────────────────────────────────────────────────────
 
   async function loadInternships() {
     try {
@@ -37,8 +71,8 @@ export function DataProvider({ children }) {
     }
   }
 
-  // useCallback — makes loadApplications a stable reference
-  // so pages can safely include it in useEffect dependency arrays
+  // ── APPLICATIONS ─────────────────────────────────────────────────────────
+
   const loadApplications = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -67,16 +101,28 @@ export function DataProvider({ children }) {
     }
   }, []);
 
-  async function applyToInternship(studentId, internshipId, matchScore) {
+  // studentId kept in signature for API compatibility — actual student
+  // identity comes from the JWT token on the backend
+  async function applyToInternship(
+    studentId,
+    internshipId,
+    matchScore,
+    resumeData = null,
+    resumeName = null,
+  ) {
     const token = getToken();
     try {
+      const body = { internshipId, matchScore };
+      if (resumeData) body.resumeData = resumeData;
+      if (resumeName) body.resumeName = resumeName;
+
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ internshipId, matchScore }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) return { success: false, message: data.message };
@@ -174,8 +220,11 @@ export function DataProvider({ children }) {
       value={{
         internships,
         applications,
+        skills,
         loadApplications,
         loadAllApplications,
+        loadSkills,
+        addSkill,
         applyToInternship,
         getMyApplications,
         hasApplied,
